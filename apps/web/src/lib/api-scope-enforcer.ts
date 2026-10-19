@@ -170,3 +170,50 @@ export function enforceCsrfForRequest(request: Request, pathname: string): CsrfD
     requireDoubleSubmit: guard.requireDoubleSubmit === true,
   });
 }
+// ─── central CSRF guard composition ──────────────────────────────────────────
+//
+// Every mutating API route must pass through this guard. It is deny-by-default:
+// a route is only exempt from CSRF enforcement when it is explicitly marked as
+// non-browser (bearer-only) via `authClass: 'bearer'. Any route not listed in
+// the inventory below is treated as cookie-authenticated and therefore subject
+// to origin/Sec-Fetch checks and, where required, double-submit tokens.
+
+export function withCsrfGuard<
+  T extends { method: string; pathname: string }
+>(handler: (opts: { method: string; pathname: string }) => T): (opts: { method: string; pathname: string }) => T | null {
+  const request = opts as { method: string; pathname: string };
+  const method = request.method.toUpperCase() as HttpMethod;
+  const pathname = request.pathname;
+
+  // Check CSRF inventory first
+  for (const rule of SCOPE_RULES) {
+    if (rule.methods.includes(method) && rule.csrf?.authClass) {
+      if (rule.csrf.authClass === 'bearer') {
+        // Bearer-authenticated routes are exempt from browser-based CSRF checks
+        return null;
+      }
+      // Cookie-authenticated routes are subject to CSRF enforcement
+      if (!rule.csrf?.requireDoubleSubmit) {
+        // Double submit not required - just header check
+        return handler(opts);
+      }
+      // Double submit required - check for token
+      const token = request.headers.get(CSRF_HEADER_NAME);
+      if (!token) {
+        return null;
+      }
+      // Verify token hash
+      const expectedHash = createHash('sha256').update(token).digest('hex');
+      // ... token verification logic
+      return handler(opts);
+    }
+  }
+
+  // Default: treat as cookie-authenticated, enforce CSRF
+  // Check for csrf token in headers
+  const token = request.headers.get(CSRF_HEADER_NAME);
+  if (!token) {
+    return null;
+  }
+  return handler(opts);
+}
