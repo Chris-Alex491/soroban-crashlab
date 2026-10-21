@@ -118,6 +118,8 @@ export const ROUTE_CATALOG: RouteCatalogEntry[] = [
   r('PUT', '/api/networks/active', 'session', { role: 'maintainer' }, 'default'),
   r('GET', '/api/notifications', 'session', null, 'default'),
   r('GET', '/api/openapi', 'public', null, 'default'),
+  r('GET', '/api/runs', 'session', { scopes: ['runs:read'] }, 'default'),
+  r('POST', '/api/runs', 'session', { role: 'analyst', scopes: ['runs:write'] }, 'default'),
   r('GET', '/api/replay-jobs/[id]', 'session', { scopes: ['runs:read'] }, 'default'),
   r('GET', '/api/replay-jobs/[id]/stream', 'session', { scopes: ['runs:read'] }, 'default'),
   r('GET', '/api/runs', 'session', { scopes: ['runs:read'] }, 'default'),

@@ -10,6 +10,7 @@ pub mod redact;
 pub mod regression_group;
 pub mod reproducer;
 pub mod retry;
+pub mod redact;
 pub mod runner;
 pub mod shrink;
 pub mod signature_hash;
