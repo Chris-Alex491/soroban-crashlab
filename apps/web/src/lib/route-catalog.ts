@@ -28,8 +28,7 @@ export type AuthClass = 'public' | 'session' | 'token';
 export type RateLimitClass = 'default' | 'strict' | 'lenient' | 'none';
 
 export interface RouteCapability {
-  /** Mutating requests are role-gated; read-only entries omit this. */
-  /** Absent for read-only endpoints: a token scope is enough. */
+  /** Role required for role-gated routes; read-only scope-only routes omit it. */
   role?: UserRole;
   scopes?: ApiTokenScope[];
 }
@@ -131,6 +130,8 @@ export const ROUTE_CATALOG: RouteCatalogEntry[] = [
   r('POST', '/api/runs', 'session', { role: 'analyst', scopes: ['runs:write'] }, 'default'),
   r('GET', '/api/runs/compare', 'session', { scopes: ['runs:read'] }, 'default'),
   r('GET', '/api/runs/[id]', 'session', { scopes: ['runs:read'] }, 'default'),
+  r('GET', '/api/runs/[id]/fee-summary', 'session', { scopes: ['runs:read'] }, 'default'),
+  r('GET', '/api/runs/[id]/clusters', 'session', { scopes: ['runs:read'] }, 'default'),
   // Reserved policy: the destructive verb is pre-registered at maintainer so a
   // future DELETE handler cannot land under the permissive fallback.
   r('DELETE', '/api/runs/[id]', 'session', { role: 'maintainer', scopes: ['runs:write'] }, 'default'),
