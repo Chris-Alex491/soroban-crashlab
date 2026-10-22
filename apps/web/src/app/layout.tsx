@@ -9,9 +9,7 @@ import A11yShell from "../components/a11y/A11yShell";
 import { LocaleProvider } from "../i18n/context";
 import { ToastProvider } from "../components/Toast";
 import NavBar from "../components/NavBar";
-import AddKeyboardShortcutCheatsheetModal from "../features/misc/add-keyboard-shortcut-cheatsheet-modal";
-import OnboardingWizardHost from "./OnboardingWizardHost";
-import CommandPalette from "../components/CommandPalette";
+import { DeferredAppChrome } from "../components/DeferredAppChrome";
 import PageTransition from "../components/PageTransition";
 import { GlobalScrollEffects } from "../components/scroll-effects/GlobalScrollEffects";
 import { UploadthingSsrConfigScript } from "../components/UploadthingSsrConfigScript";
@@ -110,9 +108,7 @@ export default async function RootLayout({
               <ToastProvider>
                 <A11yShell>
               <NavBar />
-              <AddKeyboardShortcutCheatsheetModal />
-              <CommandPalette />
-              <OnboardingWizardHost />
+              <DeferredAppChrome />
               <GlobalScrollEffects>
                 <main id="page-shell" className="pt-[56px] lg:pt-[68px]" style={{ background: 'var(--bg)', minHeight: '100vh', transition: 'background 0.3s ease' }}>
                   <PageTransition>
