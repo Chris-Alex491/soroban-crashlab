@@ -35,6 +35,8 @@ export type AuditAction =
   | 'auth.login'
   | 'auth.login.denied'
   | 'auth.role.grant'
+  | 'tenant.access.denied'
+  | 'quota.override';
   | 'triage.status'
   | 'triage.assign'
   | 'triage.priority'

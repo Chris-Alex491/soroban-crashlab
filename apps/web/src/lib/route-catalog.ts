@@ -28,6 +28,7 @@ export type AuthClass = 'public' | 'session' | 'token';
 export type RateLimitClass = 'default' | 'strict' | 'lenient' | 'none';
 
 export interface RouteCapability {
+  /** Mutating requests are role-gated; read-only entries omit this. */
   /** Absent for read-only endpoints: a token scope is enough. */
   role?: UserRole;
   scopes?: ApiTokenScope[];
@@ -72,6 +73,9 @@ export const ROUTE_CATALOG: RouteCatalogEntry[] = [
   r('GET', '/api/auth/oidc/callback', 'public', null, 'default'),
   r('GET', '/api/auth/oidc/start', 'public', null, 'default'),
   r('POST', '/api/campaigns', 'session', { role: 'maintainer' }, 'default'),
+  r('GET', '/api/campaigns/[id]/timeline', 'session', null, 'default'),
+  r('GET', '/api/capacity', 'public', null, 'default'),
+  r('POST', '/api/capacity/usage', 'token', { role: 'analyst' }, 'default'),
   r('GET', '/api/capacity', 'public', null, 'default'),
   r('POST', '/api/capacity/usage', 'token', { role: 'analyst' }, 'default'),
   r('POST', '/api/csp-report', 'public', null, 'strict'),
