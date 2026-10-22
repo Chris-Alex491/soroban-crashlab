@@ -8,9 +8,9 @@ import type { EnvironmentCheck } from '../lib/replay/environment';
 import type { ReplayFailure } from '../lib/replay/failure';
 import { generateMarkdownReport } from './report-utils';
 import ReportModal from './ReportModal';
-import { useMaintainerMode } from './useMaintainerMode';
 import { ReplayButtonStatus } from './replay-ui-utils';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { explainGate, useEffectiveAccess } from '../lib/permissions';
 
 interface CrashDetailDrawerProps {
     run: FuzzingRun;
@@ -28,7 +28,11 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
     const [jobId, setJobId] = useState<string | null>(null);
     const [failure, setFailure] = useState<ReplayFailure | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-    const { isMaintainer } = useMaintainerMode();
+    // Replay is a server-side capability (#1880), not a local toggle: the
+    // maintainer-mode switch no longer implies write access the server will
+    // reject with a 403.
+    const { can: holdsCapability, role, status: accessStatus } = useEffectiveAccess();
+    const canTriggerReplay = holdsCapability('runs:replay');
 
     const asideRef = useRef<HTMLElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -41,8 +45,8 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
     });
 
     const handleReplay = useCallback(async () => {
-        if (!run.crashDetail || status === 'loading' || !isMaintainer) return;
-
+        if (!run.crashDetail || status === 'loading' || !canTriggerReplay) return;
+        
         setStatus('loading');
         setReplayedRunId(null);
         setJobId(null);
@@ -113,7 +117,7 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
             });
             setStatus('error');
         }
-    }, [acknowledged, isMaintainer, onReplayComplete, run, runner, status]);
+    }, [canTriggerReplay, onReplayComplete, status, run]);
 
     const canReplay = Boolean(run.crashDetail);
 
@@ -230,13 +234,13 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
                                 <button
                                     type="button"
                                     onClick={handleReplay}
-                                    disabled={!canReplay || status === 'loading' || !isMaintainer}
+                                    disabled={!canReplay || status === 'loading' || !canTriggerReplay}
                                     aria-busy={status === 'loading'}
                                     className={`
                                         w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-md active:scale-[0.97]
                                         ${status === 'loading' 
                                             ? 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed' 
-                                            : !isMaintainer
+                                            : !canTriggerReplay
                                                 ? 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600 cursor-not-allowed opacity-60'
                                                 : status === 'error'
                                                     ? 'bg-rose-600 text-white hover:bg-rose-700'
@@ -259,9 +263,9 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
                                     {status === 'loading' ? 'Running replay…' : status === 'error' ? 'Retry replay' : status === 'success' ? 'Replay queued' : 'Run seed replay'}
                                 </button>
                                 
-                                {!isMaintainer && (
+                                {!canTriggerReplay && (
                                     <p className="text-[10px] text-zinc-500 dark:text-zinc-500 italic">
-                                        * Enable maintainer mode to trigger replays.
+                                        * {explainGate('runs:replay', accessStatus, role)}
                                     </p>
                                 )}
                             </div>
