@@ -16,6 +16,7 @@ import {
 import { FuzzingRunSchema } from '@/lib/schemas/runs';
 import { isRedisConfigured } from '@/lib/redis';
 import { withCsrfProtection } from '@/lib/csrf';
+import { upsertRunInSearchIndex } from '@/lib/search/server-index';
 
 const DEFAULT_PAGE_LIMIT = 20;
 
@@ -133,6 +134,11 @@ export const POST = withRouteErrorHandling('POST /api/runs', withCsrfProtection(
   const driver = selectRunStorageDriver();
   if ('putRun' in driver && typeof driver.putRun === 'function') {
     await (driver as import('@/lib/storage/kv-run-driver').KVRunDriver).putRun(result.data);
+  }
+  try {
+    await upsertRunInSearchIndex(driver, result.data);
+  } catch (error) {
+    logger.warn('Failed to update run search index', { error });
   }
 
   return createdResponse({ run: result.data });

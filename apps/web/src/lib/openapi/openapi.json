@@ -2800,6 +2800,9 @@
         ]
       }
     },
+    "/api/runs/search": {
+      "get": {
+        "description": "Ranked server-side search over run identifiers, signatures, contracts, and tags. ?q=<query>&limit=<1-200> (default 50). Results are capped at 200 with a truncation hint.",
     "/api/runs/compare": {
       "get": {
         "description": "Side-by-side delta for ?base=<id>&candidate=<id>: metadata, coverage, crash signature and per-field verdicts.",
@@ -2839,17 +2842,17 @@
             },
             "description": "VALIDATION_ERROR"
           },
-          "404": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
                     "code": {
-                      "example": "RUN_NOT_FOUND",
+                      "example": "UNAUTHORIZED",
                       "type": "string"
                     },
                     "error": {
-                      "example": "Run not found.",
+                      "example": "Authentication is required.",
                       "type": "string"
                     }
                   },
@@ -2861,7 +2864,7 @@
                 }
               }
             },
-            "description": "RUN_NOT_FOUND"
+            "description": "UNAUTHORIZED"
           }
         },
         "security": [
@@ -2871,7 +2874,7 @@
             ]
           }
         ],
-        "summary": "Compare two runs field by field",
+        "summary": "Search fuzzing runs (ranked, bounded)",
         "tags": [
           "runs"
         ]
