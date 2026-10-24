@@ -129,9 +129,7 @@ impl PlateauPolicy {
     /// a threshold within basis-point range, and at least one sustained
     /// window.
     pub const fn is_valid(&self) -> bool {
-        self.window_seeds > 0
-            && self.score_threshold_bps <= 10_000
-            && self.sustained_windows > 0
+        self.window_seeds > 0 && self.score_threshold_bps <= 10_000 && self.sustained_windows > 0
     }
 
     /// Classifies a plateau score (in basis points) against this policy's
@@ -482,7 +480,10 @@ mod tests {
         assert!(n < d);
         for p in CampaignPreset::ALL {
             let bps = p.dictionary_injection_bps();
-            assert!(bps <= 10_000, "injection probability must be at most 10000 bps");
+            assert!(
+                bps <= 10_000,
+                "injection probability must be at most 10000 bps"
+            );
         }
     }
 }
