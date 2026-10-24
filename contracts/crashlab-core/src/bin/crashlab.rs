@@ -23,6 +23,7 @@ use crashlab_core::{
     HealthSnapshot, HealthStatus, RetentionPolicy, RetentionRecord, LocalArtifactStore,
     ArtifactStore, RunCheckpoint, CaseBundleDocument, FixtureManifest, ProvenancePolicy,
     load_case_bundle_document_json, import_corpus_json, verify_corpus_integrity,
+    apply_minimization, plan_minimization, CorpusRecord,
 };
 use crashlab_core::worker_partition::RingCoverage;
 use std::collections::HashSet;
@@ -260,11 +261,16 @@ fn main() {
             }
             corpus_verify_command(path);
         }
+        (Some("corpus"), Some("minimize"), Some(path), flag)
+            if flag.is_none() || flag == Some("--dry-run") || flag == Some("--apply") =>
+        {
         (Some("shrink"), Some(path), Some(out_path), None) => {
             if !rest.is_empty() {
                 print_usage();
                 std::process::exit(1);
             }
+            corpus_minimize_command(path, flag == Some("--apply"));
+        }
             shrink_command(path, out_path);
         }
         _ => {
@@ -286,6 +292,7 @@ fn print_usage() {
                 crashlab regression baseline set <observed-suite.json> <baseline.json>\n\
                 crashlab regression baseline compare <observed-suite.json> <baseline.json>\n\
                 crashlab corpus verify <corpus-json-path>\n\
+                 crashlab corpus minimize <corpus-json-path> [--dry-run|--apply]\n\
                 crashlab shrink <bundle-json-path> <out-bundle-json-path>\n\
                 crashlab fixture verify <manifest-or-bundle-json> [--policy <require|warn|off>]\n\
                 crashlab fixture show <manifest-or-bundle-json> [--json]\n\
@@ -587,6 +594,25 @@ fn corpus_verify_command(path: &str) {
     }
 }
 
+/// `crashlab corpus minimize <corpus.json> [--dry-run|--apply]` (#1853).
+///
+/// Default is a dry run that only reports. `--apply` writes the removed seed ids
+/// to the sidecar `<corpus.json>.tombstones.json`; the corpus archive itself is
+/// never rewritten and no seed is hard-deleted. Observed signatures and
+/// provenance are not stored in the archive yet, so every seed uses the
+/// outcome-class fallback key and has no provenance protection.
+fn corpus_minimize_command(path: &str, apply: bool) {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("failed to read corpus file: {e}");
+            std::process::exit(1);
+        }
+    };
+    let seeds = match import_corpus_json(&bytes) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("failed to parse corpus: {e}");
 /// Iteration cap for `crashlab shrink`; each iteration is one replay check.
 const SHRINK_MAX_ITERATIONS: u32 = 10_000;
 
@@ -610,6 +636,81 @@ fn shrink_command(path: &str, out_path: &str) {
         }
     };
 
+    let sidecar = PathBuf::from(format!("{path}.tombstones.json"));
+    let previously: Vec<u64> = match fs::read(&sidecar) {
+        Ok(raw) => match serde_json::from_slice(&raw) {
+            Ok(ids) => ids,
+            Err(e) => {
+                eprintln!("failed to parse {}: {e}", sidecar.display());
+                std::process::exit(1);
+            }
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(e) => {
+            eprintln!("failed to read {}: {e}", sidecar.display());
+            std::process::exit(1);
+        }
+    };
+
+    let mut records: Vec<CorpusRecord> = seeds
+        .into_iter()
+        .map(|seed| {
+            let mut record = CorpusRecord::new(seed);
+            record.tombstoned = previously.contains(&record.seed.id);
+            record
+        })
+        .collect();
+
+    let plan = match plan_minimization(&records) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("cannot minimize corpus: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    let live = records.iter().filter(|r| !r.tombstoned).count();
+    println!(
+        "corpus minimize: {} live seed(s), {} behavior group(s)",
+        live,
+        plan.groups.len()
+    );
+    println!(
+        "keep: {}, remove: {}, bytes saved: {}",
+        plan.keep.len(),
+        plan.remove.len(),
+        plan.bytes_saved
+    );
+    for id in &plan.remove {
+        println!("  remove seed {id}");
+    }
+
+    if !apply {
+        println!("dry run: no changes written (pass --apply to tombstone)");
+        return;
+    }
+
+    let report = apply_minimization(&plan, &mut records);
+    let mut ids = previously;
+    ids.extend(records.iter().filter(|r| r.tombstoned).map(|r| r.seed.id));
+    ids.sort_unstable();
+    ids.dedup();
+    let rendered = match serde_json::to_vec_pretty(&ids) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("failed to render tombstones: {e}");
+            std::process::exit(1);
+        }
+    };
+    if let Err(e) = fs::write(&sidecar, rendered) {
+        eprintln!("failed to write {}: {e}", sidecar.display());
+        std::process::exit(1);
+    }
+    println!(
+        "tombstoned {} seed(s) ({} bytes) in {}",
+        report.tombstoned,
+        report.bytes_tombstoned,
+        sidecar.display()
     let original = doc.original_or_minimal_seed().clone();
     let expected = doc.signature.clone();
     let seed_id = original.id;
